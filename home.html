@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikiguessr - Home</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        .home-container { max-width: 600px; }
+        .play-button { 
+            display: inline-block;
+            padding: 20px 40px; 
+            font-size: 1.5em; 
+            text-decoration: none;
+            background-color: #28a745;
+            color: white;
+            border-radius: 8px;
+            margin-top: 20px;
+            transition: background-color 0.2s;
+        }
+        .play-button:hover { background-color: #218838; }
+    </style>
+</head>
+<body>
+    <div class="home-container">
+        <h1>Welcome to Wikiguessr!</h1>
+        <p>Guess the location based on the first sentence of a Wikipedia article.</p>
+        <a href="/create-game" class="play-button">Start a New Game</a>
+    </div>
+</body>
+</html>

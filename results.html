@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikiguessr - Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body { display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .results-container { text-align: center; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 500px; }
+        .leaderboard { list-style: none; padding: 0; margin-top: 20px; }
+        .leaderboard li { font-size: 1.2em; padding: 10px; border-bottom: 1px solid #eee; text-align: left;}
+        .leaderboard li:first-child { font-weight: bold; color: #d4af37; } /* Gold for 1st */
+        .leaderboard li:nth-child(2) { color: #c0c0c0; } /* Silver for 2nd */
+        .leaderboard li:nth-child(3) { color: #cd7f32; } /* Bronze for 3rd */
+        .share-link { margin-top: 30px; }
+        .share-link input { width: 95%; padding: 10px; text-align: center; border: 1px solid #ccc; border-radius: 4px; }
+        .play-again-button { 
+            display: inline-block;
+            padding: 15px 30px; 
+            font-size: 1.2em; 
+            text-decoration: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="results-container">
+        <h1>Final Results</h1>
+        <ol class="leaderboard">
+            {% for score in scores %}
+                <li>{{ score.name }} - {{ score.score }} points</li>
+            {% else %}
+                <li>No scores yet!</li>
+            {% endfor %}
+        </ol>
+
+        <div class="share-link">
+            <h3>Challenge Your Friends!</h3>
+            <p>Share this link so they can play the same game:</p>
+            <input type="text" value="{{ request.url_root }}play/{{ game_id }}" readonly onclick="this.select(); document.execCommand('copy'); alert('Link copied!');">
+        </div>
+
+        <a href="/" class="play-again-button">Play a New Game</a>
+    </div>
+</body>
+</html>

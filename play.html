@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikiguessr - Play</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="game-container">
+        <h1 id="header">Wikiguessr - Round 1 of 5</h1>
+        <div class="challenge-box">
+            <p id="sentence">Loading challenge...</p>
+        </div>
+        <div id="map"></div>
+        <div class="controls">
+            <button id="guess-button" disabled>Place a Guess on the Map</button>
+            <button id="next-round-button" style="display:none;">Next Round</button>
+        </div>
+        <div id="result" class="result-box"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const gameId = "{{ game_id }}";
+        
+        // DOM Elements
+        const headerEl = document.getElementById('header');
+        const sentenceEl = document.getElementById('sentence');
+        const guessButton = document.getElementById('guess-button');
+        const nextRoundButton = document.getElementById('next-round-button');
+        const resultEl = document.getElementById('result');
+
+        // Map setup
+        const map = L.map('map').setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // Game State
+        let rounds = [];
+        let currentRound = 0;
+        let totalScore = 0;
+        let guessMarker = null;
+        let answerMarker = null;
+        let polyline = null;
+
+        // --- Core Game Logic ---
+        async function fetchGameData() {
+            try {
+                const response = await fetch(`/api/get-game-data/${gameId}`);
+                if (!response.ok) throw new Error("Game data not found.");
+                rounds = await response.json();
+                startRound();
+            } catch (error) {
+                sentenceEl.textContent = "Error: Could not load game. It may have expired.";
+                console.error(error);
+            }
+        }
+
+        function startRound() {
+            headerEl.textContent = `Wikiguessr - Round ${currentRound + 1} of 5`;
+            sentenceEl.textContent = rounds[currentRound].sentence;
+            
+            resultEl.style.display = 'none';
+            guessButton.style.display = 'block';
+            guessButton.disabled = true;
+            guessButton.textContent = "Place a Guess on the Map";
+            nextRoundButton.style.display = 'none';
+            
+            if (guessMarker) map.removeLayer(guessMarker);
+            if (answerMarker) map.removeLayer(answerMarker);
+            if (polyline) map.removeLayer(polyline);
+            guessMarker = null;
+            answerMarker = null;
+
+            map.setView([20, 0], 2);
+        }
+
+        function showRoundResults() {
+            const guessLatLng = guessMarker.getLatLng();
+            const actualCoords = rounds[currentRound].location;
+            const actualLatLng = L.latLng(actualCoords.lat, actualCoords.lng);
+
+            const distance = Math.round(guessLatLng.distanceTo(actualLatLng) / 1000);
+            
+            // Scoring algorithm: 5000 points for a perfect guess, less for farther away.
+            const roundScore = Math.max(0, 5000 - distance);
+            totalScore += roundScore;
+
+            // Show answer on map
+            answerMarker = L.marker(actualLatLng).addTo(map);
+            polyline = L.polyline([guessLatLng, actualLatLng], {color: 'red'}).addTo(map);
+            map.fitBounds(polyline.getBounds().pad(0.2));
+
+            resultEl.innerHTML = `You were <strong>${distance.toLocaleString()} km</strong> away. Score: <strong>${roundScore}</strong>`;
+            resultEl.style.display = 'block';
+            
+            guessButton.style.display = 'none';
+            nextRoundButton.style.display = 'block';
+
+            if (currentRound === 4) { // Is it the last round?
+                nextRoundButton.textContent = "Finish Game & See Results";
+            }
+        }
+
+        async function finishGame() {
+            const playerName = prompt("Game Over! Your final score is " + totalScore + "\nPlease enter your name for the leaderboard:", "Player");
+            if (playerName) {
+                await fetch(`/api/submit-score/${gameId}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name: playerName.slice(0, 50), score: totalScore }) // Limit name length
+                });
+            }
+            window.location.href = `/results/${gameId}`;
+        }
+
+        // --- Event Listeners ---
+        map.on('click', (e) => {
+            if (answerMarker) return; // Round is over, don't allow new guesses
+            if (guessMarker) map.removeLayer(guessMarker);
+            guessMarker = L.marker(e.latlng).addTo(map);
+            guessButton.disabled = false;
+        });
+
+        guessButton.addEventListener('click', showRoundResults);
+
+        nextRoundButton.addEventListener('click', () => {
+            currentRound++;
+            if (currentRound < 5) {
+                startRound();
+            } else {
+                finishGame();
+            }
+        });
+
+        // --- Start the game ---
+        fetchGameData();
+    </script>
+</body>
+</html>

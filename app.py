@@ -8,142 +8,116 @@ from flask import Flask, jsonify, render_template, redirect, url_for, request
 app = Flask(__name__)
 
 # --- In-Memory Database ---
-# This will store all active games. It will be cleared if the server restarts.
 GAMES = {}
 
 # --- Load Shapefile ---
-try
-    world = geopandas.read_file(zipne_110m_land.zip)
+# NOTE: The 'try/except' block was simplified for clarity in the final version.
+# The original code provided was correct, but this is a common place for typos.
+try:
+    world = geopandas.read_file("zip://ne_110m_land.zip")
     land_polygons = world.geometry.unary_union
-    print(Successfully loaded land shapefile.)
-except Exception as e
-    print(fError loading shapefile {e})
-    print(Please ensure 'ne_110m_land.zip' is in the project directory.)
+    print("Successfully loaded land shapefile.")
+except Exception as e:
+    print(f"Error loading shapefile: {e}")
+    print("Please ensure 'ne_110m_land.zip' is in the project directory.")
     land_polygons = None
 
 # --- Helper Functions for Game Logic ---
-def generate_random_land_location()
-    if not land_polygons return 34.0522, -118.2437 
-    while True
+def generate_random_land_location():
+    if not land_polygons: return 34.0522, -118.2437
+    while True:
         lon, lat = random.uniform(-180, 180), random.uniform(-90, 90)
-        if land_polygons.contains(Point(lon, lat))
+        if land_polygons.contains(Point(lon, lat)):
             return lat, lon
 
-def get_closest_wikipedia_article(lat, lon)
+def get_closest_wikipedia_article(lat, lon):
     session = requests.Session()
-    api_url = httpsen.wikipedia.orgwapi.php
+    api_url = "https://en.wikipedia.org/w/api.php"
     params = {
-        action query,
-        list geosearch,
-        gscoord f{lat}{lon},
-        gsradius 10000,
-        gslimit 1,
-        format json
+        "action": "query", "list": "geosearch", "gscoord": f"{lat}|{lon}",
+        "gsradius": 10000, "gslimit": 1, "format": "json"
     }
-    try
+    try:
         response = session.get(url=api_url, params=params)
         data = response.json()
-        if data['query']['geosearch']
+        if data['query']['geosearch']:
             return data['query']['geosearch'][0]['title']
-    except Exception
+    except Exception:
         pass
     return None
 
-def get_first_sentence(title)
+def get_first_sentence(title):
     session = requests.Session()
-    api_url = httpsen.wikipedia.orgwapi.php
+    api_url = "https://en.wikipedia.org/w/api.php"
     params = {
-        action query,
-        prop extracts,
-        exintro True,
-        explaintext True,
-        titles title,
-        format json
+        "action": "query", "prop": "extracts", "exintro": True, "explaintext": True,
+        "titles": title, "format": "json"
     }
-    try
+    try:
         response = session.get(url=api_url, params=params)
         data = response.json()
         page_id = list(data['query']['pages'].keys())[0]
         extract = data['query']['pages'][page_id].get('extract', '')
-        if extract
-            # Return only the first sentence
+        if extract:
             return extract.split('. ')[0] + '.'
-    except Exception
+    except Exception:
         pass
-    return Could not retrieve the first sentence for this location.
+    return "Could not retrieve the first sentence for this location."
 
 # --- Game Logic Route ---
-def create_new_challenge()
-    Generates a single, valid challenge by retrying until a good article is found.
-    while True
+def create_new_challenge():
+    while True:
         lat, lon = generate_random_land_location()
         title = get_closest_wikipedia_article(lat, lon)
-        if title
+        if title:
             sentence = get_first_sentence(title)
-            # Filter out disambiguation or list pages for a better experience
-            if may refer to not in sentence and is a list of not in sentence
-                return {sentence sentence, location {lat lat, lng lon}}
+            if "may refer to" not in sentence and "is a list of" not in sentence:
+                return {"sentence": sentence, "location": {"lat": lat, "lng": lon}}
 
 # --- Page Routes ---
-@app.route('')
-def home()
-    Serves the homepage where users can start a new game.
+@app.route('/')
+def home():
     return render_template('home.html')
 
-@app.route('create-game')
-def create_game()
-    Creates a new 5-round game, stores it, and redirects the player.
-    game_id = str(uuid.uuid4())[8] # Generate a short, unique game ID
-    new_game = {
-        rounds [create_new_challenge() for _ in range(5)],
-        scores []
-    }
+@app.route('/create-game')
+def create_game():
+    game_id = str(uuid.uuid4())[:8]
+    new_game = {"rounds": [create_new_challenge() for _ in range(5)], "scores": []}
     GAMES[game_id] = new_game
-    print(fCreated new game with ID {game_id})
+    print(f"Created new game with ID: {game_id}")
     return redirect(url_for('play_game', game_id=game_id))
 
-@app.route('playgame_id')
-def play_game(game_id)
-    Serves the main game page for a specific game ID.
-    if game_id not in GAMES
-        return Game not found!, 404
+@app.route('/play/<game_id>')
+def play_game(game_id):
+    if game_id not in GAMES:
+        return "Game not found!", 404
     return render_template('play.html', game_id=game_id)
 
-@app.route('resultsgame_id')
-def show_results(game_id)
-    Displays the leaderboard for a completed game.
-    if game_id not in GAMES
-        return Game not found!, 404
-    
+@app.route('/results/<game_id>')
+def show_results(game_id):
+    if game_id not in GAMES:
+        return "Game not found!", 404
     game_data = GAMES[game_id]
-    # Sort scores from highest to lowest for the leaderboard
-    sorted_scores = sorted(game_data['scores'], key=lambda x x['score'], reverse=True)
-    
+    sorted_scores = sorted(game_data['scores'], key=lambda x: x['score'], reverse=True)
     return render_template('results.html', game_id=game_id, scores=sorted_scores)
 
 # --- API Endpoints ---
-@app.route('apiget-game-datagame_id')
-def get_game_data(game_id)
-    API endpoint for the frontend to fetch the rounds for a specific game.
-    if game_id not in GAMES
-        return jsonify({error Game not found}), 404
-    # Return only the rounds data, not the scores
+@app.route('/api/get-game-data/<game_id>')
+def get_game_data(game_id):
+    if game_id not in GAMES:
+        return jsonify({"error": "Game not found"}), 404
     return jsonify(GAMES[game_id]['rounds'])
 
-@app.route('apisubmit-scoregame_id', methods=['POST'])
-def submit_score(game_id)
-    API endpoint for players to submit their final score.
-    if game_id not in GAMES
-        return jsonify({error Game not found}), 404
-    
+@app.route('/api/submit-score/<game_id>', methods=['POST'])
+def submit_score(game_id):
+    if game_id not in GAMES:
+        return jsonify({"error": "Game not found"}), 404
     data = request.get_json()
     player_name = data.get('name', 'Anonymous')
     player_score = data.get('score', 0)
-    
-    GAMES[game_id]['scores'].append({name player_name, score player_score})
-    print(fScore submitted for game {game_id} {player_name} - {player_score})
-    return jsonify({success True})
+    GAMES[game_id]['scores'].append({"name": player_name, "score": player_score})
+    print(f"Score submitted for game {game_id}: {player_name} - {player_score}")
+    return jsonify({"success": True})
 
-if __name__ == '__main__'
-    # This part is for local testing only. Render will use Gunicorn instead.
+if __name__ == '__main__':
     app.run(debug=True)

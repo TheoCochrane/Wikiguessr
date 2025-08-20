@@ -63,14 +63,50 @@ def get_first_sentence(title):
 
 # --- Game Logic Route ---
 def create_new_challenge():
-    # This function remains the same
+    """
+    Creates a new challenge, redacting the main title AND any other
+    capitalized proper nouns to make the clue more challenging.
+    """
     while True:
         lat, lon = generate_random_land_location()
         title = get_closest_wikipedia_article(lat, lon)
         if title:
             sentence = get_first_sentence(title)
-            if "may refer to" not in sentence and "is a list of" not in sentence:
-                return {"sentence": sentence, "location": {"lat": lat, "lng": lon}}
+            
+            # --- Stage 1: Redact the main article title ---
+            placeholder = "This location"
+            redacted_sentence = re.sub(re.escape(title), placeholder, sentence, flags=re.IGNORECASE)
+            
+            # Also, handle titles with commas like "Paris, France" by trying to redact the first part.
+            if ',' in title:
+                first_part = title.split(',')[0].strip()
+                redacted_sentence = re.sub(re.escape(first_part), placeholder, redacted_sentence, flags=re.IGNORECASE)
+
+            # --- Stage 2: Scrub all other proper nouns ---
+            words = redacted_sentence.split()
+            # The first word is always kept, even if capitalized.
+            final_words = [words[0]]
+            
+            # Loop through the rest of the words
+            for word in words[1:]:
+                # A word is likely a proper noun if it's capitalized mid-sentence.
+                # We check if the first character is uppercase.
+                # We ignore single-letter words like "A" or "I".
+                if len(word) > 1 and word[0].isupper():
+                    # It's a proper noun! Replace it.
+                    # We strip punctuation to preserve it in the placeholder.
+                    clean_word = word.strip('.,;?!')
+                    punctuation = word[len(clean_word):]
+                    final_words.append("[...]" + punctuation)
+                else:
+                    # It's a normal word, so we keep it.
+                    final_words.append(word)
+
+            # Join the cleaned words back into a final sentence.
+            final_sentence = " ".join(final_words)
+
+            if "may refer to" not in final_sentence and "is a list of" not in final_sentence:
+                return {"sentence": final_sentence, "location": {"lat": lat, "lng": lon}}
 
 # --- All other routes remain exactly the same ---
 @app.route('/')
@@ -118,3 +154,4 @@ def submit_score(game_id):
 
 if __name__ == '__main__':
     app.run(debug=True)
+

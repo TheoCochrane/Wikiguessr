@@ -1,36 +1,32 @@
-import geopandas
+import json
 import random
 import requests
 import uuid
-from shapely.geometry import Point
 from flask import Flask, jsonify, render_template, redirect, url_for, request
 
 app = Flask(__name__)
 
+# --- Load the pre-generated locations list ---
+# This is much faster and more reliable than geopandas
+try:
+    with open('locations.json', 'r') as f:
+        LOCATIONS = json.load(f)
+    print(f"Successfully loaded {len(LOCATIONS)} locations.")
+except FileNotFoundError:
+    print("Error: locations.json not found! Using a single fallback location.")
+    LOCATIONS = [{"lat": 34.0522, "lng": -118.2437}]
+
 # --- In-Memory Database ---
 GAMES = {}
 
-# --- Load Shapefile ---
-# NOTE: The 'try/except' block was simplified for clarity in the final version.
-# The original code provided was correct, but this is a common place for typos.
-try:
-    world = geopandas.read_file("zip://ne_110m_land.zip")
-    land_polygons = world.geometry.unary_union
-    print("Successfully loaded land shapefile.")
-except Exception as e:
-    print(f"Error loading shapefile: {e}")
-    print("Please ensure 'ne_110m_land.zip' is in the project directory.")
-    land_polygons = None
-
 # --- Helper Functions for Game Logic ---
 def generate_random_land_location():
-    if not land_polygons: return 34.0522, -118.2437
-    while True:
-        lon, lat = random.uniform(-180, 180), random.uniform(-90, 90)
-        if land_polygons.contains(Point(lon, lat)):
-            return lat, lon
+    """Picks a random location from our pre-made list."""
+    random_location = random.choice(LOCATIONS)
+    return random_location['lat'], random_location['lng']
 
 def get_closest_wikipedia_article(lat, lon):
+    # This function remains the same
     session = requests.Session()
     api_url = "https://en.wikipedia.org/w/api.php"
     params = {
@@ -47,6 +43,7 @@ def get_closest_wikipedia_article(lat, lon):
     return None
 
 def get_first_sentence(title):
+    # This function remains the same
     session = requests.Session()
     api_url = "https://en.wikipedia.org/w/api.php"
     params = {
@@ -66,6 +63,7 @@ def get_first_sentence(title):
 
 # --- Game Logic Route ---
 def create_new_challenge():
+    # This function remains the same
     while True:
         lat, lon = generate_random_land_location()
         title = get_closest_wikipedia_article(lat, lon)
@@ -74,7 +72,7 @@ def create_new_challenge():
             if "may refer to" not in sentence and "is a list of" not in sentence:
                 return {"sentence": sentence, "location": {"lat": lat, "lng": lon}}
 
-# --- Page Routes ---
+# --- All other routes remain exactly the same ---
 @app.route('/')
 def home():
     return render_template('home.html')
@@ -101,7 +99,6 @@ def show_results(game_id):
     sorted_scores = sorted(game_data['scores'], key=lambda x: x['score'], reverse=True)
     return render_template('results.html', game_id=game_id, scores=sorted_scores)
 
-# --- API Endpoints ---
 @app.route('/api/get-game-data/<game_id>')
 def get_game_data(game_id):
     if game_id not in GAMES:

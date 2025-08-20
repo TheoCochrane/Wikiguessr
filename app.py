@@ -51,6 +51,9 @@ def get_first_sentence(title):
         response = session.get(url=api_url, params=params)
         data = response.json()
         page_id = list(data['query']['pages'].keys())[0]
+        # Important check for invalid page_id
+        if page_id == '-1':
+            return "Could not retrieve the first sentence for this location."
         extract = data['query']['pages'][page_id].get('extract', '')
         if extract:
             return extract.split('. ')[0] + '.'
@@ -70,30 +73,21 @@ def create_new_challenge():
         if title:
             sentence = get_first_sentence(title)
             
-            # --- Stage 1: Clean the title to use as a reliable fallback ---
             clean_title = title.split('(')[0].strip()
 
-            # --- Stage 2: Define an exhaustive list of verbs and verb phrases ---
-            # The \b ensures we match whole words only.
             verb_pattern = r'\b(is|was|are|were|\'s|serves as|comprises|contains|is located in|' \
                            r'was completed in|opened in|stands in|is a|are a|was a|were a|' \
                            r'refers to|constitutes|represents|encompasses|was established in|' \
                            r'is found in)\b'
             
-            # --- Stage 3: Use regex to find the first verb's position ---
             match = re.search(verb_pattern, sentence, re.IGNORECASE)
             
             clue = ""
-            # --- Stage 4: Extract the subject based on the match ---
             if match:
-                # The clue is everything before the verb
                 clue = sentence[:match.start()].strip(' ,')
             else:
-                # Fallback 1: If no verb found, use the clean title
                 clue = clean_title
 
-            # --- Stage 5: Implement robust fallbacks for quality control ---
-            # Fallback 2: If the extracted clue is too short or nonsensical, use the clean title
             if len(clue) < 3 or clue.lower() == "the":
                 clue = clean_title
 
@@ -145,24 +139,4 @@ def submit_score(game_id):
     return jsonify({"success": True})
 
 if __name__ == '__main__':
-    app.run(debug=True)```
-
-#### **Step 2: Push the Exhaustive Update to GitHub**
-
-Let's publish this final, polished version of the game logic.
-
-1.  Open your **Terminal**.
-2.  Navigate to your project directory.
-3.  Run the standard `git` commands:
-
-    ```bash
-    git add app.py
-    git commit -m "Feat: Implement exhaustive subject extraction for clues"
-    git push
-    ```
-
-#### **Step 3: Play Your Polished Game!**
-
-The `git push` will trigger a final deployment on Render. Within a minute, your game will be live with this significantly improved clue-generation engine.
-
-You will now find that the clues are very consistently just the name of the place, making for a pure and challenging "Hard Mode" test of your geographical knowledge. This is a fantastic final version of the game's core logic.
+    app.run(debug=True)

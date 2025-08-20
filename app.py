@@ -2,12 +2,12 @@ import json
 import random
 import requests
 import uuid
+import re  # <--- THIS LINE WAS MISSING!
 from flask import Flask, jsonify, render_template, redirect, url_for, request
 
 app = Flask(__name__)
 
 # --- Load the pre-generated locations list ---
-# This is much faster and more reliable than geopandas
 try:
     with open('locations.json', 'r') as f:
         LOCATIONS = json.load(f)
@@ -19,14 +19,12 @@ except FileNotFoundError:
 # --- In-Memory Database ---
 GAMES = {}
 
-# --- Helper Functions for Game Logic ---
+# --- Helper Functions ---
 def generate_random_land_location():
-    """Picks a random location from our pre-made list."""
     random_location = random.choice(LOCATIONS)
     return random_location['lat'], random_location['lng']
 
 def get_closest_wikipedia_article(lat, lon):
-    # This function remains the same
     session = requests.Session()
     api_url = "https://en.wikipedia.org/w/api.php"
     params = {
@@ -43,7 +41,6 @@ def get_closest_wikipedia_article(lat, lon):
     return None
 
 def get_first_sentence(title):
-    # This function remains the same
     session = requests.Session()
     api_url = "https://en.wikipedia.org/w/api.php"
     params = {
@@ -73,36 +70,27 @@ def create_new_challenge():
         if title:
             sentence = get_first_sentence(title)
             
-            # --- Stage 1: Redact the main article title ---
             placeholder = "This location"
             redacted_sentence = re.sub(re.escape(title), placeholder, sentence, flags=re.IGNORECASE)
             
-            # Also, handle titles with commas like "Paris, France" by trying to redact the first part.
             if ',' in title:
                 first_part = title.split(',')[0].strip()
                 redacted_sentence = re.sub(re.escape(first_part), placeholder, redacted_sentence, flags=re.IGNORECASE)
 
-            # --- Stage 2: Scrub all other proper nouns ---
             words = redacted_sentence.split()
-            # The first word is always kept, even if capitalized.
+            if not words: 
+                continue
+
             final_words = [words[0]]
             
-            # Loop through the rest of the words
             for word in words[1:]:
-                # A word is likely a proper noun if it's capitalized mid-sentence.
-                # We check if the first character is uppercase.
-                # We ignore single-letter words like "A" or "I".
                 if len(word) > 1 and word[0].isupper():
-                    # It's a proper noun! Replace it.
-                    # We strip punctuation to preserve it in the placeholder.
                     clean_word = word.strip('.,;?!')
                     punctuation = word[len(clean_word):]
                     final_words.append("[...]" + punctuation)
                 else:
-                    # It's a normal word, so we keep it.
                     final_words.append(word)
 
-            # Join the cleaned words back into a final sentence.
             final_sentence = " ".join(final_words)
 
             if "may refer to" not in final_sentence and "is a list of" not in final_sentence:
@@ -154,4 +142,3 @@ def submit_score(game_id):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
